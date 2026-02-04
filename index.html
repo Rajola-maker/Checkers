@@ -12,15 +12,18 @@
   --board-light: #e8c39e;
 }
   footer {
-  margin-top: 15px;
-  font-size: 0.8rem;
-  color: var(--primary-gold);
-  letter-spacing: 1px;
+  position: absolute;
+  bottom: 10px; /* Inaiweka chini kabisa */
+  width: 100%;
+  left: 0;
+  font-size: 0.65rem; /* Saizi ndogo sana */
+  color: rgba(255, 255, 255, 0.3); /* Rangi iliyofifia sana (transparency) */
+  letter-spacing: 2px;
   text-transform: uppercase;
-  font-weight: bold;
-  text-shadow: 1px 1px 2px black;
-  display: block; 
+  pointer-events: none; /* Inazuia isizuie mchezo ukiguswa kwa bahati mbaya */
+  font-weight: 300;
 }
+
 body {
   margin: 0; font-family: 'Segoe UI', sans-serif;
   background: url('https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=2000&auto=format&fit=crop') no-repeat center center fixed;
