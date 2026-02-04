@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="UTF-8">
+<title>VENOCHECKERS 2026 - MELODIC EDITION</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+:root {
+  --primary-gold: #d4af37;
+  --bg-dark: rgba(0,0,0,0.85);
+  --board-dark: #2c1e14;
+  --board-light: #e8c39e;
+}
+body {
+  margin: 0; font-family: 'Segoe UI', sans-serif;
+  background: url('https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=2000&auto=format&fit=crop') no-repeat center center fixed;
+  background-size: cover; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh;
+}
+.container {
+  background: var(--bg-dark); backdrop-filter: blur(10px); padding: 15px; border-radius: 15px;
+  width: 95vw; max-width: 480px; text-align: center; border: 2px solid var(--primary-gold);
+}
+#board { display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1/1; border: 5px solid #3d2b1f; }
+.cell { aspect-ratio: 1/1; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+.cell.dark { background: var(--board-dark); }
+.cell.light { background: var(--board-light); }
+.piece { width: 85%; height: 85%; border-radius: 50%; position: relative; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.piece.red { background: linear-gradient(145deg, #ff4b2b, #8b0000); border: 2px solid #500; }
+.piece.black { background: linear-gradient(145deg, #444, #000); border: 2px solid #111; }
+.piece.king::after { content: '👑'; display: flex; justify-content: center; align-items: center; height: 100%; font-size: 1.2rem; }
+.selected { outline: 3px solid #00ff00; transform: scale(1.15); z-index: 10; }
+.hint-cell { box-shadow: inset 0 0 15px var(--primary-gold); }
+.controls { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+button { padding: 10px; border-radius: 5px; border: none; font-size: 0.9rem; cursor: pointer; font-weight: bold; background: var(--primary-gold); color: black; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>VENOCHECKERS 2026</h1>
+  
+  <div id="setup">
+    <div class="controls">
+      <select id="gameMode" onchange="toggleLevelUI()" style="grid-column: span 2; padding: 10px;">
+        <option value="pvp">Wachezaji 2 (Local)</option>
+        <option value="ai">Vs AI (Challenge Mode)</option>
+      </select>
+      <div id="levelDiv" class="hidden" style="grid-column: span 2;">
+        <select id="aiLevelSelect" style="width: 100%; padding: 10px;"></select>
+      </div>
+      <button class="full-width" style="grid-column: span 2;" onclick="initGame()">ANZA MCHEZO</button>
+      <button class="full-width" style="grid-column: span 2;" id="musicBtn" onclick="toggleMusic()">🎵 Washa Muziki</button>
+    </div>
+  </div>
+
+  <div id="gameUI" class="hidden">
+    <div id="status" style="margin-bottom: 5px; font-weight: bold;">Zamu: NYEKUNDU</div>
+    <div id="board"></div>
+    <div class="controls">
+      <button onclick="undo()">⏮ Undo</button>
+      <button onclick="getHint()">💡 Hint</button>
+      <button onclick="backToMenu()" style="grid-column: span 2;">🏠 Menu Kuu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let musicInterval;
+let isMusicPlaying = false;
+
+function playMelody() {
+    const melody = [329.63, 392.00, 440.00, 523.25, 440.00, 392.00]; // E, G, A, C, A, G
+    let step = 0;
+    musicInterval = setInterval(() => {
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(melody[step % melody.length], audioCtx.currentTime);
+        g.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 1.5);
+        step++;
+    }, 800);
+}
+
+function toggleMusic() {
+    if (isMusicPlaying) {
+        clearInterval(musicInterval);
+        document.getElementById('musicBtn').innerText = "🎵 Washa Muziki";
+    } else {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        playMelody();
+        document.getElementById('musicBtn').innerText = "🎵 Zima Muziki";
+    }
+    isMusicPlaying = !isMusicPlaying;
+}
+
+function playSfx(f, t='sine', d=0.1) {
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = t; o.frequency.value = f; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+    o.start(); o.stop(audioCtx.currentTime + d);
+}
+
+let board, turn, selectedPiece, mustCapture, isMultiJump, gameMode, aiDepth, history = [];
+let unlockedLevel = parseInt(localStorage.getItem('v_lvl')) || 1;
+
+function toggleLevelUI() {
+    const isAI = document.getElementById('gameMode').value === 'ai';
+    document.getElementById('levelDiv').style.display = isAI ? 'block' : 'none';
+    const sel = document.getElementById('aiLevelSelect'); sel.innerHTML = '';
+    for(let i=1; i<=10; i++) {
+        const opt = document.createElement('option'); opt.value = i;
+        opt.disabled = i > unlockedLevel;
+        opt.innerText = `Level ${i} ${i > unlockedLevel ? '🔒' : ''}`;
+        sel.appendChild(opt);
+    }
+}
+
+function initGame() {
+    gameMode = document.getElementById('gameMode').value;
+    aiDepth = gameMode === 'ai' ? parseInt(document.getElementById('aiLevelSelect').value) : 1;
+    document.getElementById('setup').classList.add('hidden');
+    document.getElementById('gameUI').classList.remove('hidden');
+    createBoard(); render();
+}
+
+function createBoard() {
+    board = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            if ((r + c) % 2 !== 0) {
+                if (r < 3) board[r][c] = { color: 'black', king: false };
+                else if (r > 4) board[r][c] = { color: 'red', king: false };
+            }
+        }
+    }
+    turn = 'red'; isMultiJump = false; selectedPiece = null; history = [];
+    checkMustCapture();
+}
+
+function render() {
+    const boardEl = document.getElementById('board'); boardEl.innerHTML = '';
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const cell = document.createElement('div');
+            cell.className = `cell ${(r+c)%2===0 ? 'light':'dark'}`;
+            const p = board[r][c];
+            if (p) {
+                const pEl = document.createElement('div');
+                pEl.className = `piece ${p.color} ${p.king ? 'king':''} ${selectedPiece?.r===r && selectedPiece?.c===c ? 'selected':''}`;
+                cell.appendChild(pEl);
+            }
+            cell.onclick = () => handleCellClick(r, c);
+            boardEl.appendChild(cell);
+        }
+    }
+    document.getElementById('status').innerText = `Zamu: ${turn.toUpperCase()}`;
+}
+
+function getValidMoves(r, c, b = board) {
+    const p = b[r][c]; if (!p) return [];
+    const moves = [], dirs = [[1,1],[1,-1],[-1,1],[-1,-1]];
+    dirs.forEach(d => {
+        let nr = r + d[0], nc = c + d[1];
+        if (p.king) {
+            let enemy = false, er, ec;
+            while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                if (!b[nr][nc]) {
+                    if (!enemy) moves.push({ tr: nr, tc: nc, capture: false });
+                    else moves.push({ tr: nr, tc: nc, capture: true, cr: er, cc: ec });
+                } else {
+                    if (enemy || b[nr][nc].color === p.color) break;
+                    enemy = true; er = nr; ec = nc;
+                }
+                nr += d[0]; nc += d[1];
+            }
+        } else {
+            if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                if (!b[nr][nc]) {
+                    if ((p.color === 'red' && d[0] < 0) || (p.color === 'black' && d[0] > 0))
+                        moves.push({ tr: nr, tc: nc, capture: false });
+                } else if (b[nr][nc].color !== p.color) {
+                    let tr = nr + d[0], tc = nc + d[1];
+                    if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8 && !b[tr][tc])
+                        moves.push({ tr, tc, capture: true, cr: nr, cc: nc });
+                }
+            }
+        }
+    });
+    const caps = moves.filter(m => m.capture);
+    return caps.length > 0 ? caps : moves;
+}
+
+function handleCellClick(r, c) {
+    if (gameMode === 'ai' && turn === 'black') return;
+    const p = board[r][c];
+    if (p && p.color === turn) {
+        if (isMultiJump && (selectedPiece.r !== r || selectedPiece.c !== c)) return;
+        if (mustCapture.length > 0 && !mustCapture.some(m => m.r === r && m.c === c)) return;
+        selectedPiece = { r, c }; render();
+    } else if (selectedPiece) {
+        executeMove(selectedPiece.r, selectedPiece.c, r, c);
+    }
+}
+
+function executeMove(sr, sc, tr, tc) {
+    const moves = getValidMoves(sr, sc);
+    const move = moves.find(m => m.tr === tr && m.tc === tc);
+    if (!move) return;
+
+    history.push(JSON.stringify({board, turn}));
+    const p = board[sr][sc];
+    board[tr][tc] = p; board[sr][sc] = null;
+
+    if (move.capture) {
+        board[move.cr][move.cc] = null;
+        playSfx(150, 'square', 0.2);
+        const next = getValidMoves(tr, tc).filter(m => m.capture);
+        if (next.length > 0) {
+            selectedPiece = { r: tr, c: tc }; isMultiJump = true; render();
+            if (gameMode === 'ai' && turn === 'black') setTimeout(() => {
+                const aiNext = next[0]; executeMove(tr, tc, aiNext.tr, aiNext.tc);
+            }, 500);
+            return;
+        }
+    } else { playSfx(400); }
+
+    if ((p.color === 'red' && tr === 0) || (p.color === 'black' && tr === 7)) p.king = true;
+    
+    isMultiJump = false; selectedPiece = null;
+    turn = turn === 'red' ? 'black' : 'red';
+    checkMustCapture(); render();
+    if (checkGameOver()) return;
+    if (gameMode === 'ai' && turn === 'black') setTimeout(makeAiMove, 600);
+}
+
+function makeAiMove() {
+    const result = minimax(board, Math.min(aiDepth, 4), -Infinity, Infinity, true);
+    if (result.move) executeMove(result.move.sr, result.move.sc, result.move.tr, result.move.tc);
+}
+
+function minimax(nb, depth, alpha, beta, isMax) {
+    if (depth === 0) return { score: evaluate(nb) };
+    let moves = [];
+    const color = isMax ? 'black' : 'red';
+    for(let r=0; r<8; r++) for(let c=0; c<8; c++)
+        if(nb[r][c]?.color === color) getValidMoves(r,c,nb).forEach(m => moves.push({sr:r, sc:c, ...m}));
+    
+    if (moves.length === 0) return { score: isMax ? -1000 : 1000 };
+    const caps = moves.filter(m => m.capture);
+    if (caps.length > 0) moves = caps;
+
+    let bestMove = null;
+    if (isMax) {
+        let maxEval = -Infinity;
+        for (let m of moves) {
+            let ev = minimax(simulate(nb, m), depth-1, alpha, beta, false).score;
+            if (ev > maxEval) { maxEval = ev; bestMove = m; }
+            alpha = Math.max(alpha, ev); if (beta <= alpha) break;
+        }
+        return { score: maxEval, move: bestMove };
+    } else {
+        let minEval = Infinity;
+        for (let m of moves) {
+            let ev = minimax(simulate(nb, m), depth-1, alpha, beta, true).score;
+            if (ev < minEval) { minEval = ev; bestMove = m; }
+            beta = Math.min(beta, ev); if (beta <= alpha) break;
+        }
+        return { score: minEval, move: bestMove };
+    }
+}
+
+function simulate(b, m) {
+    const nb = b.map(row => row.map(c => c ? {...c} : null));
+    const p = nb[m.sr][m.sc]; nb[m.tr][m.tc] = p; nb[m.sr][m.sc] = null;
+    if (m.capture) nb[m.cr][m.cc] = null;
+    return nb;
+}
+
+function evaluate(b) {
+    let s = 0;
+    b.flat().forEach(p => { if(p) s += (p.color === 'black' ? (p.king?20:10) : (p.king?-20:-10)) });
+    return s;
+}
+
+function checkMustCapture() {
+    mustCapture = [];
+    for(let r=0; r<8; r++) for(let c=0; c<8; c++)
+        if(board[r][c]?.color === turn && getValidMoves(r,c).some(m=>m.capture)) mustCapture.push({r,c});
+}
+
+function undo() {
+    if (history.length > 0) {
+        const last = JSON.parse(history.pop());
+        board = last.board; turn = last.turn; render();
+    }
+}
+
+function getHint() {
+    const result = minimax(board, 4, -Infinity, Infinity, turn === 'black');
+    if (result.move) {
+        const cells = document.getElementsByClassName('cell');
+        const index = result.move.tr * 8 + result.move.tc;
+        cells[index].classList.add('hint-cell');
+        setTimeout(() => cells[index].classList.remove('hint-cell'), 2000);
+        playSfx(600, 'sine', 0.3);
+    }
+}
+
+function checkGameOver() {
+    let counts = {red:0, black:0};
+    board.flat().forEach(p => { if(p) counts[p.color]++ });
+    if (counts.red === 0 || counts.black === 0) {
+        const win = counts.black === 0;
+        playSfx(win ? 600 : 100, 'sawtooth', 0.5);
+        alert(win ? "Heko! Umeshinda Level Hii!" : "AI Imekufunga! Jaribu Tena.");
+        if (win && gameMode === 'ai' && aiDepth === unlockedLevel) {
+            unlockedLevel++; localStorage.setItem('v_lvl', unlockedLevel);
+        }
+        backToMenu(); return true;
+    }
+    return false;
+}
+
+function backToMenu() {
+    document.getElementById('setup').classList.remove('hidden');
+    document.getElementById('gameUI').classList.add('hidden');
+    toggleLevelUI();
+}
+
+toggleLevelUI();
+</script>
+</body>
+</html>
