@@ -12,17 +12,16 @@
   --board-light: #e8c39e;
 }
   footer {
-  position: absolute;
-  bottom: 10px; /* Inaiweka chini kabisa */
-  width: 100%;
-  left: 0;
-  font-size: 0.65rem; /* Saizi ndogo sana */
-  color: rgba(255, 255, 255, 0.3); /* Rangi iliyofifia sana (transparency) */
-  letter-spacing: 2px;
+  margin-top: 25px; /* Inatengeneza nafasi kidogo toka kwenye boksi la mchezo */
+  font-size: 0.65rem; /* Saizi ndogo ya kitaalamu */
+  color: rgba(255, 255, 255, 0.25); /* Rangi iliyofifia sana ili isionekane sana */
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  pointer-events: none; /* Inazuia isizuie mchezo ukiguswa kwa bahati mbaya */
-  font-weight: 300;
+  font-weight: 400;
+  display: block;
+  text-align: center; /* Inahakikisha ipo katikati */
 }
+
 
 body {
   margin: 0; font-family: 'Segoe UI', sans-serif;
@@ -76,8 +75,9 @@ button { padding: 10px; border-radius: 5px; border: none; font-size: 0.9rem; cur
       <button onclick="backToMenu()" style="grid-column: span 2;">🏠 Menu Kuu</button>
     </div>
   </div>
-</div> 
   <footer>© 2026 Venocyber - Created by Rajola</footer>
+
+</div>
 
 <script>
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
