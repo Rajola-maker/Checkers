@@ -11,6 +11,16 @@
   --board-dark: #2c1e14;
   --board-light: #e8c39e;
 }
+  footer {
+  margin-top: 15px;
+  font-size: 0.8rem;
+  color: var(--primary-gold);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px black;
+  display: block; 
+}
 body {
   margin: 0; font-family: 'Segoe UI', sans-serif;
   background: url('https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=2000&auto=format&fit=crop') no-repeat center center fixed;
@@ -63,7 +73,8 @@ button { padding: 10px; border-radius: 5px; border: none; font-size: 0.9rem; cur
       <button onclick="backToMenu()" style="grid-column: span 2;">🏠 Menu Kuu</button>
     </div>
   </div>
-</div>
+</div> 
+  <footer>© 2026 Venocyber - Created by Rajola</footer>
 
 <script>
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
